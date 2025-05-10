@@ -1,0 +1,165 @@
+# open evcc at http://evcc.local:7070
+network:
+  schema: http
+  host: evcc.local # .local suffix announces the hostname on MDNS
+  port: 7070
+
+database:
+  type: sqlite
+  dsn: /var/lib/evcc/evcc.db
+
+log: info
+levels:
+  lp-1: debug
+  cache: error
+
+# Sponsoringtoken
+sponsortoken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJldmNjLmlvIiwic3ViIjoiaDBseiIsImV4cCI6MTgxMTc1MDQwMCwiaWF0IjoxNzE3MTQyNDAwLCJzcmMiOiJnaCJ9.-s4INZYTQEN_ETWCvc1Hu_DIDqokciNZisNowGljjDM
+
+# unique installation id
+plant: 64de9da05edd037967af00c4b294604639eab8d10f02fe85fec26deddd7df2f6
+
+interval: 30s # control cycle interval
+
+meters:
+
+- name: grid1
+  type: custom
+  power: # power reading (W)
+    source: http
+    uri: http://192.168.2.243/cm?cmnd=Status%208
+    jq: .StatusSNS.eHz.power_curr
+  energy: # Power_curr (Wh), for chargemeter usage only
+    source: http
+    uri: http://192.168.2.243/cm?cmnd=Status%208
+    jq: .StatusSNS.eHz.total_in
+
+- type: custom
+  name: pv1
+  power: # power (W)
+    source: mqtt
+    topic: solarview/WR0/PAC
+    timeout: 60s 
+    scale: 1 
+  energy: # optional energy (kWh)
+    source: mqtt
+    topic: solarview/WR0/KT0
+    timeout: 60s 
+    scale: 1 
+
+#####
+- type: custom
+  name: shelly_steckdose
+  power:
+    source: mqtt
+    topic: shellyplusplugs-e465b85e17e8/status/switch:0
+    jq: .apower
+    timeout: 60s
+    scale: 1
+  energy:
+    source: mqtt
+    topic: shellyplusplugs-e465b85e17e8/status/switch:0
+    jq: .aenergy.total
+    timeout: 60s
+    scale: 0.001  # Umrechnung von Wh in kWh
+#####
+
+mqtt:
+  broker: 192.168.2.202:1883
+  topic: ecvv
+  user: mqtt
+  password: azimuth
+
+
+tariffs:
+  currency: EUR # three letter ISO-4217 currency code (default EUR)
+  grid:
+    # either static grid price (or price zones)
+    type: fixed
+    price: 0.2782 # EUR/kWh
+  feedin:
+    # rate for feeding excess (pv) energy to the grid
+    type: fixed
+    price: 0.2972 # EUR/kWh
+  co2:
+    # co2 tariff provides co2 intensity forecast and is for co2-optimized target charging if no variable grid tariff is specified
+    type: grünstromindex # GrünStromIndex (Germany only)
+    zip: 32369
+    token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyaWQiOiIxazdzazl5amUyNGlqcWE4Z3Zyb3p2IiwiZ3JvdXAiOiJhbm9ueW1vdXMiLCJleHAiOjE3NDEwMzQ2NDYsImlhdCI6MTc0MDQyOTg0Nn0.1ndfb-ruzb4IK1OZS8GYYaORyZoWmv1hH6AuQmCxgo4
+  solar:
+    type: template
+    template: forecast-solar
+    lat: 52.4525
+    lon: 8.6560
+    dec: 13 # 0 = horizontal, 90 = vertical
+    az: 0 # -180 = north, -90 = east, 0 = south, 90 = west, 180 = north
+    kwp: 7,9
+
+chargers:
+#- type: template
+#  template: tasmota 
+#  host: 192.168.2.60  
+#  channel: 1  
+#  standbypower: 15  
+#  name: tasmota
+
+
+-   type: template
+    template: go-e-v3
+    host: 192.168.2.84 # IP-Adresse oder Hostname 
+    name: go-e
+
+vehicles:
+#  - type: template      # alternative zu " - type: custom"   
+#    template: mazda2mqtt   # alternative zu " - type: custom"
+# - type: template      
+#    vin: JMZDR1WBJ00212458
+#    name: MX-30
+#    title: Mazda MX-30
+#    capacity: 35.5
+# identifiers:
+#  - 12345ABC # RFID token ID
+
+
+   - name: MX-30mqtt
+     type: template      # alternative zu " - type: custom"
+     template: mazda2mqtt   # alternative zu " - type: custom"
+     title: Mazda MX-30
+     capacity: 35.5
+     vin: JMZDR1WBJ00218908
+     icon: car 
+     mode: pv
+     identifiers:
+       - JMZDR1WBJ00218908 # RFID token ID
+##    onIdentify: - pv # set defaults when vehicle is identified
+##    priority: 1
+
+loadpoints:
+- title: go-e
+  charger: go-e
+  mode: pv
+# now pv off oder minpv
+#  vehicle: MX-30
+
+  enable:
+    threshold: 0
+    delay: 1m
+  disable:
+    threshold: 0 # maximum import power (W)
+    delay: 1m
+
+# - title: tasmota
+#   charger: tasmota
+#  mode: now 
+#  vehicle: MX-30
+
+site:
+  title: My home
+  meters:
+    grid: grid1
+    pv: pv1
+    aux:
+      - shelly_steckdose
+
+# https://github.com/evcc-io/evcc/blob/master/evcc.dist.yaml
+
